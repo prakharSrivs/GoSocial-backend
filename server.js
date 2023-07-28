@@ -17,8 +17,10 @@ app.use(express.urlencoded({extended:true}));
 app.use(methodOverride("_method"));
 app.use(cors());
 
+let DB_URL= "mongodb://localhost:27017/highon"
+if(process.env.DB_URL)  DB_URL=process.env.DB_URL
 
-mongoose.connect(process.env.DB_URL,{ useNewUrlParser: true, useUnifiedTopology: true, dbName: "courses" })
+mongoose.connect(DB_URL,{ useNewUrlParser: true, useUnifiedTopology: true, dbName: "courses" })
 .then(()=> console.log("Database Connected Successfully"))
 .catch((err)=> console.log("Error connecting to the Database ",err))
 
@@ -43,7 +45,13 @@ app.post('/users/signup',async (req,res)=>{
         await newUser.save();
         //Creating a JWT token to Authorize the user for future Requests
         const token = jwt.sign({id:newUser.id,username:username,email:email},process.env.SECRET,{expiresIn:'1m'});
-        res.status(201).json({message:"User Created Successfully",token,userId:newUser.id});
+        res.status(201).json({message:"User Created Successfully",
+                                token,
+                                userId:newUser.id,
+                                uid:newUser._id,
+                                imageURL:newUser.imageURL,
+                                username:newUser.username
+                            });
     }
     catch(e){
         res.status(500).json({message:"Internal Server Error"});
@@ -78,11 +86,32 @@ app.post('/users/login',async(req,res)=>{
     {
         //Creating a token
         const token = jwt.sign({id:user.id,username:user.username,email:user.email},process.env.SECRET,{expiresIn:"1h"});
-        return res.status(200).json({message:"User Logged In Successfully ",token,uid:user._id});
+        return res.status(200).json({message:"User Logged In Successfully ",
+                                        token,
+                                        uid:user._id,
+                                        imageURL:user.imageURL,
+                                        username:user.username
+                                    });
     }
     else 
     {
         return res.status(401).json({message:"Invalid Credentials"});
+    }
+})
+
+app.post('/users/image',authenticateJWT,async (req,res)=>{
+
+    const userid=req.id;
+
+    if(userid==undefined) return res.status(400).json({"message":"Fields Missing"})
+
+    try{
+        const user = await User.findById(userid);
+        if(user) return res.status(200).json({imageURL:user.imageURL});
+        else return res.status(400).json({message:"User Does not exists"});
+    }
+    catch(e){
+        return res.status(500).json({messsage:"Internal Server Error"})
     }
 })
 
@@ -94,10 +123,19 @@ app.get('/posts/',async (req,res)=>{
             let liked = false;
             if(userid)
             {
-                temp = post.likes.find((id) => id==userid)
+                temp = post.likes.find((like) => like.userId==userid)
                 if(temp!=undefined) liked=true;
             }
-            return {id:post._id,description:post.description,location:post.location,author:post.author,imageURL:post.imageURL,liked:liked};
+            return {id:post._id,
+                    authorImageURL:post.authorImageURL,
+                    description:post.description,
+                    location:post.location,
+                    author:post.author,
+                    authorName:post.authorName,
+                    imageURL:post.imageURL,
+                    likes:post.likes,
+                    createdAt:post.createdAt,
+                    liked:liked};
         })
         res.status(200).json({posts});
     }
@@ -110,10 +148,18 @@ app.post('/post/create',authenticateJWT,async (req,res)=>{
     const {description,imageURL,location} = req.body;
     if(description==undefined || imageURL==undefined || location==undefined) return res.status(400).json({message:"Missing Info"});
 
-    const author = req.id;
-
+    const user = await User.findById(req.id);
+    req.imageURL=user.imageURL;
     try{
-        const post = new Post({description,author,imageURL,location});
+        const postObject = {
+            description,
+            author:req.id,
+            authorName:req.username,
+            authorImageURL:req.imageURL,
+            imageURL,
+            location,
+        }
+        const post = new Post(postObject);
         await post.save();
         return res.status(201).json({"message":"Post Created Successfully"});
     }
@@ -127,12 +173,14 @@ app.post('/post/like',authenticateJWT,async (req,res)=>{
     if(postid==undefined) return res.status(400).json({message:"Empty Fields"})
 
     const userId=req.id;
+    const user = await User.findById(req.id);
+    req.imageURL=user.imageURL;
     try{
         const post = await Post.findById(postid);
         let likes=post.likes
-        const like = likes.find((id) => id==userId);
-        if(like===undefined)    likes.push(userId);
-        else    likes = likes.filter((id) => id!=userId);
+        const like = likes.find((like) => like.userId==userId);
+        if(like===undefined)    likes.push({userId:userId,userImageURL:req.imageURL,userName:req.username});
+        else    likes = likes.filter((like) => like.userId!=userId);
         Object.assign(post,{...post,likes})
         await Post.findByIdAndUpdate(postid,post,{new:true});  
         return res.status(202).json({message:"Post Updated Successfully"});

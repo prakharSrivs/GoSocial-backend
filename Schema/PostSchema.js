@@ -5,9 +5,17 @@ const postSchema =  mongoose.Schema({
         type:String,
         require:true,
     },
+    authorName:{
+        type:String,
+        required:true,
+    },
     author:{
         type:mongoose.Schema.Types.ObjectId, ref:"User",
         require:true
+    },
+    authorImageURL:{
+        type:String,
+        required:true
     },
     location:{
         type:String,
@@ -17,12 +25,20 @@ const postSchema =  mongoose.Schema({
         type:String,
         require:true,
     },
-    likes:[
+    likes: [
         {
+          userId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref:"User"
+            ref: 'User', 
+          },
+          userImageURL: {
+            type: String,
+          },
+          userName:{
+            type:String
+          }
         }
-    ]
+      ],
     },
     {timestamps:true}
 )
