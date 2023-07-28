@@ -13,6 +13,10 @@ const userSchema = mongoose.Schema({
         type:String,
         required:true,
     },
+    imageURL:{
+        type:String,
+        required:true,
+    }
 })
 
 const User = mongoose.model('User',userSchema);

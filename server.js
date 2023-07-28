@@ -25,10 +25,9 @@ mongoose.connect("mongodb://localhost:27017/highon",{ useNewUrlParser: true, use
 
 
 app.post('/users/signup',async (req,res)=>{
-    const {username,email,password}=req.body;
-
+    const {username,email,password,imageURL}=req.body;
     //Server Side Validtion
-    if((username==undefined || password==undefined || email==undefined )) return res.sendStatus(400); 
+    if((username==undefined || password==undefined || email==undefined || imageURL==undefined )) return res.sendStatus(400); 
 
     //Checking if the user Already Exists 
     let user = await User.findOne({email});
@@ -39,22 +38,22 @@ app.post('/users/signup',async (req,res)=>{
 
     //Storing user in the Database
     try {
-        const userObject = {username:username,email:email,hashedPassword:hash}
+        const userObject = {username:username,email:email,hashedPassword:hash,imageURL:imageURL}
         const newUser = new User(userObject);
         await newUser.save();
         //Creating a JWT token to Authorize the user for future Requests
         const token = jwt.sign({id:newUser.id,username:username,email:email},process.env.SECRET,{expiresIn:'1m'});
-        res.status(201).json({message:"User Created Successfully",token});
+        res.status(201).json({message:"User Created Successfully",token,username:username});
     }
     catch(e){
         console.log("Error Inserting Data into the Database ",e);
-        res.sendStatus(500);
+        res.status(500).json({message:"Internal Server Error"});
     }
 })
 
 
 //Only For Dev
-app.get('/users/',authenticateJWT,async(req,res)=>{ 
+app.get('/users/',async(req,res)=>{ 
     console.log(req.id," ",req.username)
     const users = await User.find();
     // const postObject = {description:"laskjdfdkljf",author:"lslkdjf",location:'asfd',likes:[]}
@@ -67,7 +66,7 @@ app.get('/users/',authenticateJWT,async(req,res)=>{
 
 app.post('/users/login',async(req,res)=>{
     const {email,password} = req.body;
-   
+    console.log("Hit",req.body)
     // Server Side Validations
     if(email==undefined || password == undefined) return res.sendStatus(400);
 
@@ -83,11 +82,11 @@ app.post('/users/login',async(req,res)=>{
     if(user==undefined) return res.status(401).json({"message":"User Not Registered"}) 
 
     // Comparing the password with the hashed ones
-    if(bcrypt.compare(password,user.hashedPassword))
+    if(await bcrypt.compare(password,user.hashedPassword))
     {
         //Creating a token
         const token = jwt.sign({id:user.id,username:user.username,email:user.email},process.env.SECRET,{expiresIn:"1h"});
-        return res.status(200).json({message:"User Logged In Successfully ",token});
+        return res.status(200).json({message:"User Logged In Successfully ",token,username:user.username});
     }
     else 
     {
@@ -95,10 +94,28 @@ app.post('/users/login',async(req,res)=>{
     }
 })
 
-app.get('/posts/',authenticateJWT,async (req,res)=>{
+app.get('/posts/',async (req,res)=>{
     const posts = await Post.find();
     res.status(200).json({posts});
 })
+
+app.post('/post/create',authenticateJWT,async (req,res)=>{
+    const {description,imageURL,location} = req.body;
+    console.log(req.body)
+    if(description==undefined || imageURL==undefined || location==undefined) return res.status(400).json({message:"Missing Info"});
+
+    const author = req.id;
+
+    try{
+        const post = new Post({description,author,imageURL,location});
+        await post.save();
+        return res.status(201).json({"message":"Post Created Successfully"});
+    }
+    catch(e){
+        return res.status(500).json({message:"Internal Server Error, Try After some time "})
+    }
+})
+
 
 
 app.listen(PORT, ()=>{

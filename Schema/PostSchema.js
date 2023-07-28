@@ -13,16 +13,17 @@ const postSchema =  mongoose.Schema({
         type:String,
         require:true,
     },
-    likes:[{
-        userId :{
-            type:mongoose.Schema.Types.ObjectId, ref:"User",
-            required:true,
-        },
-        username:{
-            type:String,
-            required:true,
+    imageURL:{
+        type:String,
+        require:true,
+    },
+    likes:[
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref:"User"
         }
-    }]},
+    ]
+    },
     {timestamps:true}
 )
 
