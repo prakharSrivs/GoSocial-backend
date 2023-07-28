@@ -18,7 +18,7 @@ app.use(methodOverride("_method"));
 app.use(cors());
 
 
-mongoose.connect("mongodb://localhost:27017/highon",{ useNewUrlParser: true, useUnifiedTopology: true, dbName: "courses" })
+mongoose.connect(process.env.DB_URL,{ useNewUrlParser: true, useUnifiedTopology: true, dbName: "courses" })
 .then(()=> console.log("Database Connected Successfully"))
 .catch((err)=> console.log("Error connecting to the Database ",err))
 
@@ -43,10 +43,9 @@ app.post('/users/signup',async (req,res)=>{
         await newUser.save();
         //Creating a JWT token to Authorize the user for future Requests
         const token = jwt.sign({id:newUser.id,username:username,email:email},process.env.SECRET,{expiresIn:'1m'});
-        res.status(201).json({message:"User Created Successfully",token,username:username});
+        res.status(201).json({message:"User Created Successfully",token,userId:newUser.id});
     }
     catch(e){
-        console.log("Error Inserting Data into the Database ",e);
         res.status(500).json({message:"Internal Server Error"});
     }
 })
@@ -54,19 +53,13 @@ app.post('/users/signup',async (req,res)=>{
 
 //Only For Dev
 app.get('/users/',async(req,res)=>{ 
-    console.log(req.id," ",req.username)
     const users = await User.find();
-    // const postObject = {description:"laskjdfdkljf",author:"lslkdjf",location:'asfd',likes:[]}
-    // const newPost = new Post(postObject);
-    // await newPost.save();
-    // const posts = await Post.find();
     res.json(users);
 })
 
 
 app.post('/users/login',async(req,res)=>{
     const {email,password} = req.body;
-    console.log("Hit",req.body)
     // Server Side Validations
     if(email==undefined || password == undefined) return res.sendStatus(400);
 
@@ -76,7 +69,6 @@ app.post('/users/login',async(req,res)=>{
         user = await User.findOne({email})
     }
     catch(e){
-        console.log("Error Searching in the Database ",e)
         return res.sendStatus(500);
     }
     if(user==undefined) return res.status(401).json({"message":"User Not Registered"}) 
@@ -86,7 +78,7 @@ app.post('/users/login',async(req,res)=>{
     {
         //Creating a token
         const token = jwt.sign({id:user.id,username:user.username,email:user.email},process.env.SECRET,{expiresIn:"1h"});
-        return res.status(200).json({message:"User Logged In Successfully ",token,username:user.username});
+        return res.status(200).json({message:"User Logged In Successfully ",token,uid:user._id});
     }
     else 
     {
@@ -95,13 +87,27 @@ app.post('/users/login',async(req,res)=>{
 })
 
 app.get('/posts/',async (req,res)=>{
-    const posts = await Post.find();
-    res.status(200).json({posts});
+    const {userid}=req.headers;
+    try{
+        let posts = await Post.find();
+        posts = posts.map((post)=>{
+            let liked = false;
+            if(userid)
+            {
+                temp = post.likes.find((id) => id==userid)
+                if(temp!=undefined) liked=true;
+            }
+            return {id:post._id,description:post.description,location:post.location,author:post.author,imageURL:post.imageURL,liked:liked};
+        })
+        res.status(200).json({posts});
+    }
+    catch(e){
+        return  res.status(500).json({message:"Internal Server Error"})
+    }
 })
 
 app.post('/post/create',authenticateJWT,async (req,res)=>{
     const {description,imageURL,location} = req.body;
-    console.log(req.body)
     if(description==undefined || imageURL==undefined || location==undefined) return res.status(400).json({message:"Missing Info"});
 
     const author = req.id;
@@ -116,6 +122,25 @@ app.post('/post/create',authenticateJWT,async (req,res)=>{
     }
 })
 
+app.post('/post/like',authenticateJWT,async (req,res)=>{
+    const postid=req.headers.postid;
+    if(postid==undefined) return res.status(400).json({message:"Empty Fields"})
+
+    const userId=req.id;
+    try{
+        const post = await Post.findById(postid);
+        let likes=post.likes
+        const like = likes.find((id) => id==userId);
+        if(like===undefined)    likes.push(userId);
+        else    likes = likes.filter((id) => id!=userId);
+        Object.assign(post,{...post,likes})
+        await Post.findByIdAndUpdate(postid,post,{new:true});  
+        return res.status(202).json({message:"Post Updated Successfully"});
+    }
+    catch(e){
+        return res.status(500).json({message:"Internal Server Error"});
+    }
+})
 
 
 app.listen(PORT, ()=>{
