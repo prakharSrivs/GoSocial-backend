@@ -1,5 +1,5 @@
 # Frontend Repo 
-![Frontend Repo](https://github.com/prakharSrivs/HighonFrontend) \
+![Frontend Repo](https://github.com/prakharSrivs/HighonFrontend) 
 
 
 # ROUTES DIAGRAM 
