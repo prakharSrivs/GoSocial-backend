@@ -1,6 +1,8 @@
+# To Run the application 
+docker run -p 4500:4500  --env DB_URL=<your mongodb url> --env SECRET=<Your secret> prakharsrivs/go-social-backend-image-02
+
 # Frontend Repo 
 ![Frontend Repo](https://github.com/prakharSrivs/HighonFrontend) 
-
 
 # ROUTES DIAGRAM 
 
